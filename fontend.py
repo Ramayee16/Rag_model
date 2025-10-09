@@ -69,29 +69,65 @@ vectorizer, vectors, text_data = prepare_corpus()
 
 def get_answer_offline(question):
     q = question.lower()
-    
-    # Low salary
-    if "low salary" in q:
-        count = df[df['salary'] == 'low'].shape[0]
-        return f"🧠 There are {count} employees with low salary."
-    
-    # High salary
-    elif "high salary" in q:
-        count = df[df['salary'] == 'high'].shape[0]
-        return f"🧠 There are {count} employees with high salary."
-    
-    # Average salary
-    elif "average salary" in q:
+
+    # Satisfaction level
+    if "average satisfaction" in q or "satisfaction level" in q:
+        avg_satisfaction = df['satisfaction_level'].mean()
+        return f"🧠 The average satisfaction level is {avg_satisfaction:.2f}."
+
+    # Last evaluation
+    elif "average evaluation" in q or "last evaluation" in q:
+        avg_eval = df['last_evaluation'].mean()
+        return f"🧠 The average last evaluation score is {avg_eval:.2f}."
+
+    # Number of projects
+    elif "number of projects" in q or "number project" in q:
+        avg_projects = df['number_project'].mean()
+        return f"🧠 The average number of projects per employee is {avg_projects:.2f}."
+
+    # Monthly hours
+    elif "average hours" in q or "monthly hours" in q:
+        avg_hours = df['average_montly_hours'].mean()
+        return f"🧠 The average monthly working hours are {avg_hours:.2f}."
+
+    # Time spent in company
+    elif "time in company" in q or "years in company" in q:
+        avg_years = df['time_spend_company'].mean()
+        return f"🧠 The average time spent in the company is {avg_years:.2f} years."
+
+    # Work accident
+    elif "work accident" in q:
+        count_accident = df[df['Work_accident'] == 1].shape[0]
+        return f"🧠 {count_accident} employees had work accidents."
+
+    # Left / turnover
+    elif "left" in q or "turnover" in q:
+        count_left = df[df['left'] == 1].shape[0]
+        return f"🧠 {count_left} employees left the company."
+
+    # Promotions
+    elif "promotion" in q or "promoted" in q:
+        count_promo = df[df['promotion_last_5years'] == 1].shape[0]
+        return f"🧠 {count_promo} employees got a promotion in the last 5 years."
+
+    # Department
+    elif "department" in q:
+        depts = df['Department'].value_counts()
+        return "🧠 Number of employees per department:\n" + "\n".join([f"{d}: {c}" for d, c in depts.items()])
+
+    # Salary
+    elif "salary" in q:
+        # Count per category
+        salary_counts = df['salary'].value_counts()
+        # Average salary (map categories to numbers)
         mapping = {'low': 3000, 'medium': 5000, 'high': 7000}
         avg_salary = df['salary'].map(mapping).mean()
-        return f"🧠 The average salary of employees is approximately {avg_salary:.2f}."
-    
-    # Turnover / left
-    elif "how many people left" in q or "turnover" in q:
-        count = df[df['left'] == 1].shape[0]
-        return f"🧠 {count} employees have left the company."
-    
-    # Fallback: use TF-IDF similarity if question does not match keywords
+        response = "🧠 Salary Information:\n"
+        response += "\n".join([f"{s}: {c} employees" for s, c in salary_counts.items()])
+        response += f"\nAverage salary (estimated): {avg_salary:.2f}"
+        return response
+
+    # Fallback (TF-IDF search)
     else:
         text_data = df.astype(str).apply(lambda x: ' '.join(x), axis=1).tolist()
         vectorizer = TfidfVectorizer(stop_words='english')
