@@ -68,15 +68,38 @@ def prepare_corpus():
 vectorizer, vectors, text_data = prepare_corpus()
 
 def get_answer_offline(question):
-    q_vector = vectorizer.transform([question])
-    similarity = cosine_similarity(q_vector, vectors).flatten()
-    top_idx = np.argmax(similarity)
-    best_match = text_data[top_idx]
-    score = similarity[top_idx]
-
-    if score < 0.05:
-        return "❌ Sorry, I couldn't find any relevant information in the HR data."
+    q = question.lower()
+    
+    # Low salary
+    if "low salary" in q:
+        count = df[df['salary'] == 'low'].shape[0]
+        return f"🧠 There are {count} employees with low salary."
+    
+    # High salary
+    elif "high salary" in q:
+        count = df[df['salary'] == 'high'].shape[0]
+        return f"🧠 There are {count} employees with high salary."
+    
+    # Average salary
+    elif "average salary" in q:
+        mapping = {'low': 3000, 'medium': 5000, 'high': 7000}
+        avg_salary = df['salary'].map(mapping).mean()
+        return f"🧠 The average salary of employees is approximately {avg_salary:.2f}."
+    
+    # Turnover / left
+    elif "how many people left" in q or "turnover" in q:
+        count = df[df['left'] == 1].shape[0]
+        return f"🧠 {count} employees have left the company."
+    
+    # Fallback: use TF-IDF similarity if question does not match keywords
     else:
+        text_data = df.astype(str).apply(lambda x: ' '.join(x), axis=1).tolist()
+        vectorizer = TfidfVectorizer(stop_words='english')
+        vectors = vectorizer.fit_transform(text_data)
+        q_vector = vectorizer.transform([question])
+        similarity = cosine_similarity(q_vector, vectors).flatten()
+        top_idx = np.argmax(similarity)
+        best_match = text_data[top_idx]
         return f"🧠 Most relevant HR info:\n\n{best_match}"
 
 # ----------------------------
