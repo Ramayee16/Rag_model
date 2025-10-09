@@ -1,5 +1,7 @@
-streamlit
-pandas
-numpy
-joblib
-scikit-learn
+streamlit==1.26.0
+pandas==2.1.1
+numpy==1.26.0
+langchain==0.1.202
+openai==0.28.1
+faiss-cpu==1.7.4
+tiktoken==0.5.2
