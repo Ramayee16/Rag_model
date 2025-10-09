@@ -1,85 +1,68 @@
 import streamlit as st
-import os  # 🔑 NEW: to set environment variable
 import pandas as pd
-from langchain_openai import OpenAIEmbeddings, ChatOpenAI
-from langchain_community.vectorstores import FAISS
-from langchain.text_splitter import CharacterTextSplitter
-from langchain.chains import RetrievalQA
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+import numpy as np
 
 # ----------------------------
 # Page Setup
 # ----------------------------
 st.set_page_config(page_title="🤖 Intelligent Q&A System", page_icon="🧠", layout="wide")
 
-st.title("🤖 Intelligent Question & Answer System using RAG")
-st.write("Ask intelligent questions based on HR data. This system uses Retrieval-Augmented Generation (RAG) to give contextual answers.")
-
-# ----------------------------
-# 🔑 API Key Input Section
-# ----------------------------
-with st.sidebar:
-    st.header("🔑 API Configuration")
-    api_key = st.text_input("Enter your OpenAI API Key", type="password")
-    if api_key:
-        os.environ["OPENAI_API_KEY"] = api_key
-        st.success("✅ API Key saved for this session.")
-    else:
-        st.warning("⚠️ Please enter your OpenAI API key in the sidebar to proceed.")
-
-# Stop execution if key not entered
-if "OPENAI_API_KEY" not in os.environ or not os.environ["OPENAI_API_KEY"]:
-    st.stop()
+st.title("🤖 Intelligent Question & Answer System using RAG (Offline Mode)")
+st.write("Ask intelligent questions based on HR data — this version works offline using text similarity (no API key needed).")
 
 # ----------------------------
 # Load Dataset
 # ----------------------------
-@st.cache_resource
+@st.cache_data
 def load_data():
     df = pd.read_csv("HR_comma_sep.csv")
     return df
 
 df = load_data()
 
-# Display dataset preview
+# Display dataset
 with st.expander("📊 View HR Dataset"):
     st.dataframe(df.head())
 
 # ----------------------------
-# Build RAG Pipeline
+# Prepare text data for retrieval
 # ----------------------------
 @st.cache_resource
-def build_rag_model():
+def prepare_corpus():
     # Combine all text columns into one string per row
     text_data = df.astype(str).apply(lambda x: ' '.join(x), axis=1).tolist()
 
-    # Split text into chunks
-    splitter = CharacterTextSplitter(chunk_size=500, chunk_overlap=100)
-    docs = splitter.create_documents(text_data)
+    # Create TF-IDF vectorizer
+    vectorizer = TfidfVectorizer(stop_words='english')
+    vectors = vectorizer.fit_transform(text_data)
+    return vectorizer, vectors, text_data
 
-    # Create embeddings
-    embeddings = OpenAIEmbeddings()
-
-    # Store in FAISS vector database
-    vectorstore = FAISS.from_documents(docs, embeddings)
-
-    # Create retriever
-    retriever = vectorstore.as_retriever()
-
-    # Create LLM (GPT-like model)
-    llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0)
-
-    # Create RetrievalQA chain
-    qa = RetrievalQA.from_chain_type(
-        llm=llm,
-        retriever=retriever,
-        return_source_documents=True
-    )
-    return qa
-
-qa_chain = build_rag_model()
+vectorizer, vectors, text_data = prepare_corpus()
 
 # ----------------------------
-# User Question Input
+# Offline QA System
+# ----------------------------
+def get_answer_offline(question):
+    # Convert question to vector
+    q_vector = vectorizer.transform([question])
+
+    # Compute cosine similarity between question and text chunks
+    similarity = cosine_similarity(q_vector, vectors).flatten()
+
+    # Get most similar record
+    top_idx = np.argmax(similarity)
+    best_match = text_data[top_idx]
+    score = similarity[top_idx]
+
+    if score < 0.05:
+        return "❌ Sorry, I couldn't find any relevant information in the HR data."
+    else:
+        return f"🧠 Based on HR data, here's the most relevant information:\n\n{best_match}"
+
+# ----------------------------
+# User Input
 # ----------------------------
 st.subheader("💬 Ask your question below:")
 user_question = st.text_input("Enter your question:", placeholder="Example: What is the average monthly income of employees?")
@@ -88,12 +71,7 @@ if st.button("Get Answer"):
     if user_question.strip() == "":
         st.warning("⚠️ Please enter a valid question.")
     else:
-        with st.spinner("🔍 Retrieving answer..."):
-            response = qa_chain.invoke({"query": user_question})
+        with st.spinner("🔍 Retrieving answer from HR database..."):
+            answer = get_answer_offline(user_question)
             st.success("✅ Answer:")
-            st.write(response["result"])
-
-            # Show source data (optional)
-            with st.expander("📚 View Retrieved Data"):
-                for doc in response["source_documents"]:
-                    st.write(doc.page_content)
+            st.write(answer)
