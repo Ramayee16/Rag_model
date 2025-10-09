@@ -3,38 +3,48 @@ import pandas as pd
 import joblib
 
 # ----------------------------
-# Load your trained model & scaler
+# Load model and scaler
 # ----------------------------
-with open("hr_model.joblib", "rb") as f:
-    model = joblib.load(f)
+try:
+    model = joblib.load("hr_model.joblib")
+    scaler = joblib.load("hr_scaler.joblib")
+except Exception as e:
+    st.error(f"Error loading model or scaler: {e}")
+    st.stop()
 
-with open("hr_scaler.joblib", "rb") as f:
-    scaler = joblib.load(f)
-
 # ----------------------------
-# Load HR data
+# Load HR CSV
 # ----------------------------
-df = pd.read_csv("HR_comma_sep.csv")
+try:
+    df = pd.read_csv("HR_comma_sep.csv")
+except Exception as e:
+    st.warning(f"Could not load CSV: {e}")
+    df = None
 
 # ----------------------------
 # Streamlit UI
 # ----------------------------
-st.title("🤖 HR Prediction / Q&A System")
-st.write("This app predicts or answers questions based on your HR dataset.")
+st.title("🤖 HR Prediction System")
+st.write("This app predicts outcomes based on HR dataset.")
 
-# Example input: let's assume you want to predict employee attrition
-st.subheader("Employee Details Input")
+st.subheader("Enter Employee Details")
+
+# Example input fields (adjust according to your model features)
 age = st.number_input("Age", min_value=18, max_value=70, value=30)
 salary = st.number_input("Salary", min_value=10000, max_value=500000, value=50000)
 experience = st.number_input("Years of Experience", min_value=0, max_value=50, value=5)
 
 if st.button("Predict"):
-    # Example: scaling input and predicting
-    X = scaler.transform([[age, salary, experience]])  # adjust columns to your model
-    prediction = model.predict(X)
-    
-    st.write(f"Prediction Result: {prediction[0]}")
+    try:
+        # Scale input
+        X = scaler.transform([[age, salary, experience]])  # Adjust columns if needed
+        # Make prediction
+        prediction = model.predict(X)
+        st.success(f"Prediction Result: {prediction[0]}")
+    except Exception as e:
+        st.error(f"Error during prediction: {e}")
 
-# Optional: show raw CSV data
-if st.checkbox("Show HR Data"):
-    st.write(df)
+# Optional: show CSV data
+if st.checkbox("Show HR Dataset"):
+    if df is not None:
+        st.dataframe(df)
