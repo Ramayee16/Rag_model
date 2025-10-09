@@ -1,15 +1,15 @@
 import streamlit as st
 import pandas as pd
-import pickle
+import joblib
 
 # ----------------------------
 # Load your trained model & scaler
 # ----------------------------
-with open("hr_model.pkl", "rb") as f:
-    model = pickle.load(f)
+with open("hr_model.joblib", "rb") as f:
+    model = joblib.load(f)
 
-with open("hr_scaler.pkl", "rb") as f:
-    scaler = pickle.load(f)
+with open("hr_scaler.joblib", "rb") as f:
+    scaler = joblib.load(f)
 
 # ----------------------------
 # Load HR data
