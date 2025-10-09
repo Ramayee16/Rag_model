@@ -1,5 +1,5 @@
 import streamlit as st
-from backend import get_answer  # import function from backend.py
+from ML(project) import get_answer  # import function from ML(project).ipynb
 
 st.title("🤖 HR Intelligent Q&A System")
 st.write("Ask questions about HR policies, leave, payroll, etc.")
