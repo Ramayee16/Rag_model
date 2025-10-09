@@ -1,9 +1,9 @@
 import streamlit as st
 import pandas as pd
-from langchain.embeddings.openai import OpenAIEmbeddings
-from langchain.vectorstores import FAISS
+from langchain_openai import OpenAIEmbeddings, ChatOpenAI
+from langchain_community.vectorstores import FAISS
 from langchain.chains import RetrievalQA
-from langchain.llms import OpenAI
+
 
 # ----------------------------
 # Page Setup
