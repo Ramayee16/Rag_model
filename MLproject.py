@@ -6,7 +6,7 @@
       "provenance": [],
       "mount_file_id": "1q0L6i7nLvP9ef5ISjlYlz9PorRDGL_Ml",
       "authorship_tag": "ABX9TyOcRlkRMPh5mh+iCouLUmlB",
-      "include_colab_link": true
+      "include_colab_link": True
     },
     "kernelspec": {
       "name": "python3",
