@@ -1,4 +1,5 @@
 import streamlit as st
+import os  # 🔑 NEW: to set environment variable
 import pandas as pd
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_community.vectorstores import FAISS
@@ -12,6 +13,22 @@ st.set_page_config(page_title="🤖 Intelligent Q&A System", page_icon="🧠", l
 
 st.title("🤖 Intelligent Question & Answer System using RAG")
 st.write("Ask intelligent questions based on HR data. This system uses Retrieval-Augmented Generation (RAG) to give contextual answers.")
+
+# ----------------------------
+# 🔑 API Key Input Section
+# ----------------------------
+with st.sidebar:
+    st.header("🔑 API Configuration")
+    api_key = st.text_input("Enter your OpenAI API Key", type="password")
+    if api_key:
+        os.environ["OPENAI_API_KEY"] = api_key
+        st.success("✅ API Key saved for this session.")
+    else:
+        st.warning("⚠️ Please enter your OpenAI API key in the sidebar to proceed.")
+
+# Stop execution if key not entered
+if "OPENAI_API_KEY" not in os.environ or not os.environ["OPENAI_API_KEY"]:
+    st.stop()
 
 # ----------------------------
 # Load Dataset
