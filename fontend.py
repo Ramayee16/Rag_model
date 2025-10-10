@@ -67,23 +67,21 @@ def get_answer_llm(question):
     q_vector = vectorizer.transform([question])
     similarity = cosine_similarity(q_vector, vectors).flatten()
     top_indices = similarity.argsort()[-3:][::-1]
-    top_contexts = [text_data[i] for i in top_indices]
-    context = "\n\n".join(top_contexts)
+    top_rows = df.iloc[top_indices]  # get actual dataframe rows
+    context_text = top_rows.astype(str).apply(lambda x: ' '.join(x), axis=1).tolist()
 
-    # LLM prompt
     prompt = f"""
 You are an HR analytics assistant.
 Answer the user's question using the HR dataset context in 2-3 sentences.
 
 HR Data Context:
-{context}
+{'\n'.join(context_text)}
 
 User Question:
 {question}
 """
 
     try:
-        # Try LLM
         response = client.chat.completions.create(
             model=MODEL_NAME,
             messages=[
@@ -94,12 +92,14 @@ User Question:
         )
         answer = response.choices[0].message.content.strip()
     except Exception:
-        # Fallback to RAG only
-        answer = f"(LLM failed; showing top HR rows)\n\n{context}"
+        # Fallback: show top rows as clean table
+        answer = "(LLM failed; showing top HR rows)"
+        st.warning(answer)
+        st.dataframe(top_rows)  # show proper table instead of raw text
+        answer = "See the table above for the most relevant HR rows."
 
-    # Save to history
-    st.session_state.history.loc[len(st.session_state.history)] = [question, context, answer]
     return answer
+
 
 # ----------------------------
 # User Input
