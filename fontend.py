@@ -96,4 +96,27 @@ User Question:
 
 # ----------------------------
 # User Input
-# ---------------------------
+# ----------------------------
+st.markdown("<h2>💬 Ask Your HR Question</h2>", unsafe_allow_html=True)
+user_q = st.text_input("Enter your question:", placeholder="Example: What is the average satisfaction level?")
+
+if st.button("Get Answer"):
+    if user_q.strip() == "":
+        st.warning("⚠️ Please enter a question.")
+    else:
+        with st.spinner("🤖 Thinking..."):
+            answer = get_answer_llm(user_q)
+            st.success("✅ Answer:")
+            st.write(answer)
+
+# ----------------------------
+# Sidebar Info
+# ----------------------------
+with st.sidebar:
+    st.markdown("### ℹ️ About")
+    st.write(f"""
+- RAG + LLM HR system
+- Running {'Online GPT' if ONLINE else 'Offline LLM'}
+- Ask HR questions like satisfaction, promotions, salary, etc.
+""")
+    st.image("https://img.icons8.com/color/96/robot-2.png", width=80)
