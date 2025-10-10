@@ -8,15 +8,17 @@ import traceback
 # ----------------------------
 # LLM Setup (Online or Local)
 # ----------------------------
-from openai import OpenAI
-
 try:
     # Try online OpenAI first
-    client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+    from openai import OpenAI
+    client = OpenAI(api_key=st.secrets.get("OPENAI_API_KEY", None))
     MODEL_NAME = "gpt-4-turbo"
     ONLINE = True
-except KeyError:
-    # Fallback to local LLM (Llama3/Mistral)
+    if client.api_key is None:
+        raise ValueError("No API key found")
+except Exception:
+    # Fallback to offline/local LLM
+    from openai import OpenAI
     client = OpenAI(base_url="http://localhost:11434/v1", api_key="ollama")
     MODEL_NAME = "llama3"
     ONLINE = False
@@ -24,11 +26,10 @@ except KeyError:
 # ----------------------------
 # Page Setup
 # ----------------------------
-st.set_page_config(page_title="🤖 HR Q&A System", page_icon="🧠", layout="wide")
-
+st.set_page_config(page_title="🤖 HR Q&A", page_icon="🧠", layout="wide")
 st.markdown("""
 <h1 style='text-align:center;color:#0a3d62;'>🤖 HR Q&A System using RAG + LLM</h1>
-<p style='text-align:center;'>Ask HR questions and get answers powered by GPT or fallback RAG.</p>
+<p style='text-align:center;'>Ask questions about HR data — online or offline LLM.</p>
 """, unsafe_allow_html=True)
 
 # ----------------------------
@@ -39,12 +40,11 @@ def load_data():
     return pd.read_csv("HR_comma_sep.csv")
 
 df = load_data()
-
 with st.expander("📊 View HR Dataset"):
     st.dataframe(df.head())
 
 # ----------------------------
-# Prepare TF-IDF Corpus for RAG
+# Prepare TF-IDF Corpus
 # ----------------------------
 @st.cache_resource
 def prepare_corpus():
@@ -59,25 +59,25 @@ vectorizer, vectors, text_data = prepare_corpus()
 # RAG + LLM Answer Function
 # ----------------------------
 def get_answer_llm(question):
-    # RAG retrieval
+    # Retrieve relevant HR rows
     q_vector = vectorizer.transform([question])
     similarity = cosine_similarity(q_vector, vectors).flatten()
     top_indices = similarity.argsort()[-3:][::-1]
-    top_rows = df.iloc[top_indices]  # get actual dataframe rows
+    top_contexts = [text_data[i] for i in top_indices]
+    context = "\n\n".join(top_contexts)
 
-    # Prepare LLM prompt
-    context_text = top_rows.astype(str).apply(lambda x: ' '.join(x), axis=1).tolist()
     prompt = f"""
 You are an HR analytics assistant.
-Answer the user's question using the HR dataset context in 2-3 sentences.
+Answer the user's question based on the HR dataset context below in 2-3 sentences.
 
 HR Data Context:
-{'\n'.join(context_text)}
+{context}
 
 User Question:
 {question}
 """
 
+    # Try calling LLM
     try:
         response = client.chat.completions.create(
             model=MODEL_NAME,
@@ -87,14 +87,12 @@ User Question:
             ],
             temperature=0.5,
         )
-        answer = response.choices[0].message.content.strip()
+        return response.choices[0].message.content.strip()
     except Exception:
-        # Fallback: show top rows as a clean table
-        st.warning("(LLM failed; showing top HR rows)")
-        st.dataframe(top_rows)
-        answer = "See the table above for the most relevant HR rows."
-
-    return answer
+        # If LLM fails, fallback to just returning retrieved HR rows
+        st.warning("⚠️ LLM call failed! Showing top HR rows instead.")
+        st.text(traceback.format_exc())
+        return f"{context}\n\n(This is retrieved HR data as fallback.)"
 
 # ----------------------------
 # User Input
@@ -116,9 +114,9 @@ if st.button("Get Answer"):
 # ----------------------------
 with st.sidebar:
     st.markdown("### ℹ️ About")
-    st.write("""
-    - RAG + LLM system for HR questions  
-    - Works with OpenAI GPT or local LLM (like Llama3/Mistral)  
-    - Shows fallback RAG table if LLM fails  
-    """)
+    st.write(f"""
+- RAG + LLM HR system
+- Running {'Online GPT' if ONLINE else 'Offline LLM'}
+- Ask HR questions like satisfaction, promotions, salary, etc.
+""")
     st.image("https://img.icons8.com/color/96/robot-2.png", width=80)
