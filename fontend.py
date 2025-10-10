@@ -8,11 +8,39 @@ import os
 # ----------------------------
 # 💬 Choose which LLM to use
 # ----------------------------
-# 💬 Offline LLM (no API key needed)
-from openai import OpenAI
+def get_answer_llm(question):
+    # TF-IDF retrieval
+    q_vector = vectorizer.transform([question])
+    similarity = cosine_similarity(q_vector, vectors).flatten()
+    top_indices = similarity.argsort()[-3:][::-1]
+    top_contexts = [text_data[i] for i in top_indices]
 
-client = OpenAI(base_url="http://localhost:11434/v1", api_key="ollama")  # local Llama3/Mistral
-MODEL_NAME = "llama3"
+    context = "\n\n".join(top_contexts)
+
+    prompt = f"""
+    You are an HR analytics assistant.
+    Answer the user's question based on the HR dataset below.
+
+    HR Data Context:
+    {context}
+
+    User Question:
+    {question}
+
+    Answer clearly and concisely in 2–3 sentences.
+    """
+
+    response = client.chat.completions.create(
+        model=MODEL_NAME,
+        messages=[
+            {"role": "system", "content": "You are an expert HR data analyst."},
+            {"role": "user", "content": prompt}
+        ],
+        temperature=0.5,
+    )
+
+    return response.choices[0].message.content.strip()
+
 
 # ----------------------------
 # Page Setup
