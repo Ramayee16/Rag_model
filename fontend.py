@@ -6,27 +6,25 @@ from sklearn.metrics.pairwise import cosine_similarity
 from openai import OpenAI
 
 # ----------------------------
-# ✅ Initialize OpenAI Client (for Streamlit Cloud)
+# OpenAI LLM Setup
 # ----------------------------
-# Make sure to add your OpenAI API key in Streamlit secrets:
-# Go to Manage App → Settings → Secrets → add:
-# OPENAI_API_KEY="sk-xxxxxxxxxxxxxxxxxxxxx"
-
+# Make sure you add your OpenAI API key in Streamlit Secrets:
+# OPENAI_API_KEY="sk-xxxxxxxxxxxxxxxxxxx"
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 MODEL_NAME = "gpt-4-turbo"
 
 # ----------------------------
 # Page Setup
 # ----------------------------
-st.set_page_config(page_title="🤖 Intelligent HR Q&A with LLM", page_icon="🧠", layout="wide")
+st.set_page_config(page_title="🤖 HR Q&A with LLM", page_icon="🧠", layout="wide")
 
 st.markdown("""
 <h1 style='text-align:center;color:#0a3d62;'>🤖 Intelligent HR Q&A System using RAG + LLM</h1>
-<p style='text-align:center;'>Ask intelligent HR questions powered by GPT and offline HR data.</p>
+<p style='text-align:center;'>Ask questions about your HR data and get answers powered by GPT.</p>
 """, unsafe_allow_html=True)
 
 # ----------------------------
-# Load Dataset
+# Load HR Dataset
 # ----------------------------
 @st.cache_data
 def load_data():
@@ -39,7 +37,7 @@ with st.expander("📊 View HR Dataset"):
     st.dataframe(df.head())
 
 # ----------------------------
-# Prepare Corpus (Retriever)
+# Prepare TF-IDF Corpus (Retriever)
 # ----------------------------
 @st.cache_resource
 def prepare_corpus():
@@ -54,25 +52,25 @@ vectorizer, vectors, text_data = prepare_corpus()
 # RAG + LLM Answer Function
 # ----------------------------
 def get_answer_llm(question):
-    # Step 1: Retrieve similar HR data
+    # --- Step 1: Retrieve top 3 similar rows from HR data ---
     q_vector = vectorizer.transform([question])
     similarity = cosine_similarity(q_vector, vectors).flatten()
     top_indices = similarity.argsort()[-3:][::-1]
     top_contexts = [text_data[i] for i in top_indices]
     context = "\n\n".join(top_contexts)
 
-    # Step 2: Generate LLM answer
+    # --- Step 2: Generate answer using LLM ---
     prompt = f"""
     You are an HR analytics assistant.
-    Use the HR dataset context to answer this question.
+    Use the following HR dataset context to answer the user's question.
 
     HR Data Context:
     {context}
 
-    Question:
+    User Question:
     {question}
 
-    Answer concisely in 2–3 sentences.
+    Answer clearly and concisely in 2–3 sentences.
     """
 
     try:
@@ -86,31 +84,4 @@ def get_answer_llm(question):
         )
         return response.choices[0].message.content.strip()
     except Exception as e:
-        return f"⚠️ Error: {str(e)}"
-
-# ----------------------------
-# User Input
-# ----------------------------
-st.markdown("<h2>💬 Ask Your HR Question</h2>", unsafe_allow_html=True)
-user_q = st.text_input("Enter your question:", placeholder="Example: What is the average satisfaction level of employees who left?")
-
-if st.button("Get Answer"):
-    if user_q.strip() == "":
-        st.warning("⚠️ Please enter a question.")
-    else:
-        with st.spinner("🤖 Thinking..."):
-            answer = get_answer_llm(user_q)
-            st.success("✅ LLM Answer:")
-            st.write(answer)
-
-# ----------------------------
-# Sidebar Info
-# ----------------------------
-with st.sidebar:
-    st.markdown("### ℹ️ About This App")
-    st.write("""
-    - Real **RAG system** using TF-IDF retrieval + GPT model  
-    - Hosted online via **Streamlit Cloud**  
-    - Requires your **OpenAI API key** in Streamlit Secrets  
-    """)
-    st.image("https://img.icons8.com/color/96/robot-2.png", width=80)
+        return
