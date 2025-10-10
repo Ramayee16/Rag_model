@@ -1,10 +1,4 @@
 streamlit
 pandas
+scikit-learn
 numpy
-langchain
-langchain-openai
-langchain-community
-openai
-faiss-cpu
-tiktoken
-sklearn
