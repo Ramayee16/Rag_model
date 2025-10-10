@@ -8,16 +8,11 @@ import os
 # ----------------------------
 # 💬 Choose which LLM to use
 # ----------------------------
-USE_LOCAL = False  # set True for local model via ollama, False for OpenAI
+# 💬 Offline LLM (no API key needed)
+from openai import OpenAI
 
-if USE_LOCAL:
-    from openai import OpenAI
-    client = OpenAI(base_url="http://localhost:11434/v1", api_key="ollama")  # for local Llama3/Mistral
-    MODEL_NAME = "llama3"
-else:
-    from openai import OpenAI
-    client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])  # or os.environ["OPENAI_API_KEY"]
-    MODEL_NAME = "gpt-4-turbo"
+client = OpenAI(base_url="http://localhost:11434/v1", api_key="ollama")  # local Llama3/Mistral
+MODEL_NAME = "llama3"
 
 # ----------------------------
 # Page Setup
