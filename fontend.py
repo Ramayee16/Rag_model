@@ -3,13 +3,23 @@ import pandas as pd
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
-from openai import OpenAI
 
 # ----------------------------
 # Online OpenAI LLM Setup
 # ----------------------------
-client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-MODEL_NAME = "gpt-4-turbo"  # or "gpt-3.5-turbo"
+from openai import OpenAI
+
+try:
+    # Try online OpenAI first
+    client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+    MODEL_NAME = "gpt-4-turbo"
+    ONLINE = True
+except KeyError:
+    # Fallback to offline/local LLM
+    client = OpenAI(base_url="http://localhost:11434/v1", api_key="ollama")
+    MODEL_NAME = "llama3"
+    ONLINE = False
+
 
 # ----------------------------
 # Page Setup
