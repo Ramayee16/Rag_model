@@ -29,7 +29,7 @@ except KeyError:
 st.set_page_config(page_title="🤖 HR Q&A Online", page_icon="🧠", layout="wide")
 
 st.markdown("""
-<h1 style='text-align:center;color:#0a3d62;'>🤖 HR Q&A System using RAG + GPT</h1>
+<h1 style='text-align:center;color:#0a3d62;'>🤖 HR Q&A System using RAG </h1>
 <p style='text-align:center;'>Ask HR questions online and get answers powered by GPT.</p>
 """, unsafe_allow_html=True)
 
