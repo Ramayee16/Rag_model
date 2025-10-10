@@ -3,6 +3,8 @@ import pandas as pd
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
+import traceback
+
 
 # ----------------------------
 # Online OpenAI LLM Setup
@@ -67,7 +69,7 @@ def get_answer_llm(question):
 
     prompt = f"""
     You are an HR analytics assistant.
-    Use the HR dataset context to answer this question clearly in 2–3 sentences.
+    Use the HR dataset context to answer clearly in 2–3 sentences.
 
     HR Data Context:
     {context}
@@ -88,7 +90,7 @@ def get_answer_llm(question):
         return response.choices[0].message.content.strip()
     except Exception as e:
         st.error("⚠️ LLM call failed! Check your API key or local LLM server.")
-        st.text(traceback.format_exc())
+        st.text(traceback.format_exc())  # Works now because traceback is imported
         return "LLM could not generate an answer."
 
 # ----------------------------
