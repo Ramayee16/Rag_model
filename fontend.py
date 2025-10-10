@@ -3,7 +3,6 @@ import pandas as pd
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
-import traceback
 
 # ----------------------------
 # LLM Setup
@@ -57,7 +56,7 @@ vectorizer, vectors, text_data = prepare_corpus()
 # Store history
 # ----------------------------
 if "history" not in st.session_state:
-    st.session_state["history"] = pd.DataFrame(columns=["Question", "RAG Context", "Answer"])
+    st.session_state["history"] = []
 
 # ----------------------------
 # RAG + LLM Answer Function
@@ -67,23 +66,22 @@ def get_answer_llm(question):
     q_vector = vectorizer.transform([question])
     similarity = cosine_similarity(q_vector, vectors).flatten()
     top_indices = similarity.argsort()[-3:][::-1]
-    top_contexts = [text_data[i] for i in top_indices]
-    context = "\n\n".join(top_contexts)
+    top_rows = df.iloc[top_indices]  # dataframe rows
 
-    # LLM prompt
+    # Prepare prompt
+    context_text = top_rows.astype(str).apply(lambda x: ' '.join(x), axis=1).tolist()
     prompt = f"""
 You are an HR analytics assistant.
 Answer the user's question using the HR dataset context in 2-3 sentences.
 
 HR Data Context:
-{context}
+{'\n'.join(context_text)}
 
 User Question:
 {question}
 """
 
     try:
-        # Try LLM
         response = client.chat.completions.create(
             model=MODEL_NAME,
             messages=[
@@ -93,13 +91,18 @@ User Question:
             temperature=0.5,
         )
         answer = response.choices[0].message.content.strip()
+        rag_fallback = None
     except Exception:
-        # Fallback to RAG only
-        answer = f"(LLM failed; showing top HR rows)\n\n{context}"
+        answer = "⚠️ LLM failed; see top relevant HR rows below."
+        rag_fallback = top_rows
 
     # Save to history
-    st.session_state.history.loc[len(st.session_state.history)] = [question, context, answer]
-    return answer
+    st.session_state.history.append({
+        "Question": question,
+        "Answer": answer,
+        "RAG Rows": rag_fallback
+    })
+    return answer, rag_fallback
 
 # ----------------------------
 # User Input
@@ -107,17 +110,9 @@ User Question:
 st.markdown("<h2>💬 Ask Your HR Question</h2>", unsafe_allow_html=True)
 user_q = st.text_input("Enter your question:", placeholder="Example: What is the average satisfaction level?")
 
-if st.button("Get Answer"):
-    if user_q.strip() == "":
-        st.warning("⚠️ Please enter a question.")
-    else:
-        with st.spinner("🤖 Thinking..."):
-            answer = get_answer_llm(user_q)
-            st.success("✅ Answer:")
-            st.write(answer)
-
-# ----------------------------
-# Show History Table
-# ----------------------------
-st.markdown("<h2>📝 Question History</h2>", unsafe_allow_html=True)
-st.dataframe(st.session_state.history)
+if st.button("Get Answer") and user_q.strip() != "":
+    with st.spinner("🤖 Thinking..."):
+        answer, rag_fallback = get_answer_llm(user_q)
+        st.success("✅ Answer:")
+        st.write(answer)
+        if rag_fallback is not None:
