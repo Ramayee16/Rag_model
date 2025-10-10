@@ -87,7 +87,9 @@ def get_answer_llm(question):
         )
         return response.choices[0].message.content.strip()
     except Exception as e:
-        return f"⚠️ LLM Error: {str(e)}"
+        st.error("⚠️ LLM call failed! Check your API key or local LLM server.")
+        st.text(traceback.format_exc())
+        return "LLM could not generate an answer."
 
 # ----------------------------
 # User Input
