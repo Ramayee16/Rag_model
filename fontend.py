@@ -9,8 +9,21 @@ from openai import OpenAI
 # 🔧 Local LLM Setup (Ollama)
 # ----------------------------
 from openai import OpenAI
+
 client = OpenAI(api_key="your_openai_api_key_here")
 MODEL_NAME = "gpt-3.5-turbo"
+
+def get_llm_answer(question):
+    response = client.chat.completions.create(
+        model=MODEL_NAME,
+        messages=[
+            {"role": "system", "content": "You are an intelligent assistant for HR data queries."},
+            {"role": "user", "content": question},
+        ],
+        temperature=0.4,
+    )
+    return response.choices[0].message.content
+
 
 
 # ----------------------------
