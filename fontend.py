@@ -5,32 +5,31 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 import traceback
 
-
 # ----------------------------
-# Online OpenAI LLM Setup
+# LLM Setup (Online or Local)
 # ----------------------------
-from openai import OpenAI
-
 try:
     # Try online OpenAI first
-    client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+    from openai import OpenAI
+    client = OpenAI(api_key=st.secrets.get("OPENAI_API_KEY", None))
     MODEL_NAME = "gpt-4-turbo"
     ONLINE = True
-except KeyError:
+    if client.api_key is None:
+        raise ValueError("No API key found")
+except Exception:
     # Fallback to offline/local LLM
+    from openai import OpenAI
     client = OpenAI(base_url="http://localhost:11434/v1", api_key="ollama")
     MODEL_NAME = "llama3"
     ONLINE = False
 
-
 # ----------------------------
 # Page Setup
 # ----------------------------
-st.set_page_config(page_title="🤖 HR Q&A Online", page_icon="🧠", layout="wide")
-
+st.set_page_config(page_title="🤖 HR Q&A", page_icon="🧠", layout="wide")
 st.markdown("""
-<h1 style='text-align:center;color:#0a3d62;'>🤖 HR Q&A System using RAG </h1>
-<p style='text-align:center;'>Ask HR questions online and get answers powered by GPT.</p>
+<h1 style='text-align:center;color:#0a3d62;'>🤖 HR Q&A System using RAG + LLM</h1>
+<p style='text-align:center;'>Ask questions about HR data — online or offline LLM.</p>
 """, unsafe_allow_html=True)
 
 # ----------------------------
@@ -41,7 +40,6 @@ def load_data():
     return pd.read_csv("HR_comma_sep.csv")
 
 df = load_data()
-
 with st.expander("📊 View HR Dataset"):
     st.dataframe(df.head())
 
@@ -61,6 +59,7 @@ vectorizer, vectors, text_data = prepare_corpus()
 # RAG + LLM Answer Function
 # ----------------------------
 def get_answer_llm(question):
+    # Retrieve relevant HR rows
     q_vector = vectorizer.transform([question])
     similarity = cosine_similarity(q_vector, vectors).flatten()
     top_indices = similarity.argsort()[-3:][::-1]
@@ -68,16 +67,17 @@ def get_answer_llm(question):
     context = "\n\n".join(top_contexts)
 
     prompt = f"""
-    You are an HR analytics assistant.
-    Use the HR dataset context to answer clearly in 2–3 sentences.
+You are an HR analytics assistant.
+Answer the user's question based on the HR dataset context below in 2-3 sentences.
 
-    HR Data Context:
-    {context}
+HR Data Context:
+{context}
 
-    User Question:
-    {question}
-    """
+User Question:
+{question}
+"""
 
+    # Try calling LLM
     try:
         response = client.chat.completions.create(
             model=MODEL_NAME,
@@ -88,34 +88,12 @@ def get_answer_llm(question):
             temperature=0.5,
         )
         return response.choices[0].message.content.strip()
-    except Exception as e:
-        st.error("⚠️ LLM call failed! Check your API key or local LLM server.")
-        st.text(traceback.format_exc())  # Works now because traceback is imported
-        return "LLM could not generate an answer."
+    except Exception:
+        # If LLM fails, fallback to just returning retrieved HR rows
+        st.warning("⚠️ LLM call failed! Showing top HR rows instead.")
+        st.text(traceback.format_exc())
+        return f"{context}\n\n(This is retrieved HR data as fallback.)"
 
 # ----------------------------
 # User Input
-# ----------------------------
-st.markdown("<h2>💬 Ask Your HR Question</h2>", unsafe_allow_html=True)
-user_q = st.text_input("Enter your question:", placeholder="Example: What is the average satisfaction level?")
-
-if st.button("Get Answer"):
-    if user_q.strip() == "":
-        st.warning("⚠️ Please enter a question.")
-    else:
-        with st.spinner("🤖 Thinking..."):
-            answer = get_answer_llm(user_q)
-            st.success("✅ LLM Answer:")
-            st.write(answer)
-
-# ----------------------------
-# Sidebar Info
-# ----------------------------
-with st.sidebar:
-    st.markdown("### ℹ️ About")
-    st.write("""
-    - Online RAG + GPT system  
-    - Ask HR questions like satisfaction, promotions, salary, etc.  
-    - Requires OpenAI API key stored in Streamlit Secrets
-    """)
-    st.image("https://img.icons8.com/color/96/robot-2.png", width=80)
+# ---------------------------
