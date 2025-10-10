@@ -63,23 +63,22 @@ if "history" not in st.session_state:
 # RAG + LLM Answer Function
 # ----------------------------
 def get_answer_llm(question):
-    # RAG retrieval
     q_vector = vectorizer.transform([question])
     similarity = cosine_similarity(q_vector, vectors).flatten()
     top_indices = similarity.argsort()[-3:][::-1]
-    top_rows = df.iloc[top_indices]  # get actual dataframe rows
-    context_text = top_rows.astype(str).apply(lambda x: ' '.join(x), axis=1).tolist()
+    top_contexts = [text_data[i] for i in top_indices]
+    context = "\n\n".join(top_contexts)
 
     prompt = f"""
-You are an HR analytics assistant.
-Answer the user's question using the HR dataset context in 2-3 sentences.
+    You are an HR analytics assistant.
+    Use the HR dataset context to answer clearly in 2–3 sentences.
 
-HR Data Context:
-{'\n'.join(context_text)}
+    HR Data Context:
+    {context}
 
-User Question:
-{question}
-"""
+    User Question:
+    {question}
+    """
 
     try:
         response = client.chat.completions.create(
@@ -90,16 +89,11 @@ User Question:
             ],
             temperature=0.5,
         )
-        answer = response.choices[0].message.content.strip()
-    except Exception:
-        # Fallback: show top rows as clean table
-        answer = "(LLM failed; showing top HR rows)"
-        st.warning(answer)
-        st.dataframe(top_rows)  # show proper table instead of raw text
-        answer = "See the table above for the most relevant HR rows."
-
-    return answer
-
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        st.error("⚠️ LLM call failed! Check your API key or local LLM server.")
+        st.text(traceback.format_exc())
+        return "LLM could not generate an answer."
 
 # ----------------------------
 # User Input
