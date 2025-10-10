@@ -6,17 +6,17 @@ from sklearn.metrics.pairwise import cosine_similarity
 import traceback
 
 # ----------------------------
-# LLM Setup
+# LLM Setup (Online or Local)
 # ----------------------------
+from openai import OpenAI
+
 try:
-    from openai import OpenAI
-    client = OpenAI(api_key=st.secrets.get("OPENAI_API_KEY", None))
+    # Try online OpenAI first
+    client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
     MODEL_NAME = "gpt-4-turbo"
     ONLINE = True
-    if client.api_key is None:
-        raise ValueError("No API key found")
-except Exception:
-    from openai import OpenAI
+except KeyError:
+    # Fallback to local LLM (Llama3/Mistral)
     client = OpenAI(base_url="http://localhost:11434/v1", api_key="ollama")
     MODEL_NAME = "llama3"
     ONLINE = False
@@ -24,25 +24,27 @@ except Exception:
 # ----------------------------
 # Page Setup
 # ----------------------------
-st.set_page_config(page_title="🤖 HR Q&A with RAG Fallback", page_icon="🧠", layout="wide")
+st.set_page_config(page_title="🤖 HR Q&A System", page_icon="🧠", layout="wide")
+
 st.markdown("""
-<h1 style='text-align:center;color:#0a3d62;'>🤖 HR Q&A System with RAG Fallback</h1>
-<p style='text-align:center;'>Ask questions — if LLM fails, top HR rows are shown instead.</p>
+<h1 style='text-align:center;color:#0a3d62;'>🤖 HR Q&A System using RAG + LLM</h1>
+<p style='text-align:center;'>Ask HR questions and get answers powered by GPT or fallback RAG.</p>
 """, unsafe_allow_html=True)
 
 # ----------------------------
-# Load Dataset
+# Load HR Dataset
 # ----------------------------
 @st.cache_data
 def load_data():
     return pd.read_csv("HR_comma_sep.csv")
 
 df = load_data()
+
 with st.expander("📊 View HR Dataset"):
     st.dataframe(df.head())
 
 # ----------------------------
-# Prepare TF-IDF Corpus
+# Prepare TF-IDF Corpus for RAG
 # ----------------------------
 @st.cache_resource
 def prepare_corpus():
@@ -54,12 +56,6 @@ def prepare_corpus():
 vectorizer, vectors, text_data = prepare_corpus()
 
 # ----------------------------
-# Store history
-# ----------------------------
-if "history" not in st.session_state:
-    st.session_state["history"] = pd.DataFrame(columns=["Question", "RAG Context", "Answer"])
-
-# ----------------------------
 # RAG + LLM Answer Function
 # ----------------------------
 def get_answer_llm(question):
@@ -67,23 +63,22 @@ def get_answer_llm(question):
     q_vector = vectorizer.transform([question])
     similarity = cosine_similarity(q_vector, vectors).flatten()
     top_indices = similarity.argsort()[-3:][::-1]
-    top_contexts = [text_data[i] for i in top_indices]
-    context = "\n\n".join(top_contexts)
+    top_rows = df.iloc[top_indices]  # get actual dataframe rows
 
-    # LLM prompt
+    # Prepare LLM prompt
+    context_text = top_rows.astype(str).apply(lambda x: ' '.join(x), axis=1).tolist()
     prompt = f"""
 You are an HR analytics assistant.
 Answer the user's question using the HR dataset context in 2-3 sentences.
 
 HR Data Context:
-{context}
+{'\n'.join(context_text)}
 
 User Question:
 {question}
 """
 
     try:
-        # Try LLM
         response = client.chat.completions.create(
             model=MODEL_NAME,
             messages=[
@@ -94,11 +89,11 @@ User Question:
         )
         answer = response.choices[0].message.content.strip()
     except Exception:
-        # Fallback to RAG only
-        answer = f"(LLM failed; showing top HR rows)\n\n{context}"
+        # Fallback: show top rows as a clean table
+        st.warning("(LLM failed; showing top HR rows)")
+        st.dataframe(top_rows)
+        answer = "See the table above for the most relevant HR rows."
 
-    # Save to history
-    st.session_state.history.loc[len(st.session_state.history)] = [question, context, answer]
     return answer
 
 # ----------------------------
@@ -117,7 +112,13 @@ if st.button("Get Answer"):
             st.write(answer)
 
 # ----------------------------
-# Show History Table
+# Sidebar Info
 # ----------------------------
-st.markdown("<h2>📝 Question History</h2>", unsafe_allow_html=True)
-st.dataframe(st.session_state.history)
+with st.sidebar:
+    st.markdown("### ℹ️ About")
+    st.write("""
+    - RAG + LLM system for HR questions  
+    - Works with OpenAI GPT or local LLM (like Llama3/Mistral)  
+    - Shows fallback RAG table if LLM fails  
+    """)
+    st.image("https://img.icons8.com/color/96/robot-2.png", width=80)
