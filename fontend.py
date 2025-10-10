@@ -1,46 +1,33 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
-import numpy as np
+import os
+
+# ----------------------------
+# 💬 Choose which LLM to use
+# ----------------------------
+USE_LOCAL = False  # set True for local model via ollama, False for OpenAI
+
+if USE_LOCAL:
+    from openai import OpenAI
+    client = OpenAI(base_url="http://localhost:11434/v1", api_key="ollama")  # for local Llama3/Mistral
+    MODEL_NAME = "llama3"
+else:
+    from openai import OpenAI
+    client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])  # or os.environ["OPENAI_API_KEY"]
+    MODEL_NAME = "gpt-4-turbo"
 
 # ----------------------------
 # Page Setup
 # ----------------------------
-st.set_page_config(page_title="🤖 Intelligent Q&A System", page_icon="🧠", layout="wide")
+st.set_page_config(page_title="🤖 Intelligent HR Q&A with LLM", page_icon="🧠", layout="wide")
 
-# ----------------------------
-# Custom CSS
-# ----------------------------
 st.markdown("""
-<style>
-body {
-    background-color: #f0f2f6;
-}
-h1 {
-    color: #0a3d62;
-    text-align: center;
-}
-h2 {
-    color: #1e3799;
-}
-.stButton>button {
-    background-color: #1e3799;
-    color: white;
-    font-weight: bold;
-}
-.stTextInput>div>input {
-    border-radius: 10px;
-    padding: 10px;
-}
-</style>
+<h1 style='text-align:center;color:#0a3d62;'>🤖 Intelligent HR Q&A System using RAG + LLM</h1>
+<p style='text-align:center;'>Ask questions about your HR data — now powered by a real language model.</p>
 """, unsafe_allow_html=True)
-
-# ----------------------------
-# Title Section
-# ----------------------------
-st.markdown("<h1>🤖 Intelligent HR Q&A System using RAG</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align:center;'>Ask intelligent questions about HR data. Offline version using TF-IDF retrieval.</p>", unsafe_allow_html=True)
 
 # ----------------------------
 # Load Dataset
@@ -56,7 +43,7 @@ with st.expander("📊 View HR Dataset"):
     st.dataframe(df.head())
 
 # ----------------------------
-# Prepare offline RAG system
+# Prepare Corpus (Retriever)
 # ----------------------------
 @st.cache_resource
 def prepare_corpus():
@@ -67,100 +54,64 @@ def prepare_corpus():
 
 vectorizer, vectors, text_data = prepare_corpus()
 
-def get_answer_offline(question):
-    q = question.lower()
+# ----------------------------
+# Retrieval + LLM Answer
+# ----------------------------
+def get_answer_llm(question):
+    # --- Step 1: Retrieve ---
+    q_vector = vectorizer.transform([question])
+    similarity = cosine_similarity(q_vector, vectors).flatten()
+    top_indices = similarity.argsort()[-3:][::-1]
+    top_contexts = [text_data[i] for i in top_indices]
 
-    # Satisfaction level
-    if "average satisfaction" in q or "satisfaction level" in q:
-        avg_satisfaction = df['satisfaction_level'].mean()
-        return f"🧠 The average satisfaction level is {avg_satisfaction:.2f}."
+    context = "\n\n".join(top_contexts)
 
-    # Last evaluation
-    elif "average evaluation" in q or "last evaluation" in q:
-        avg_eval = df['last_evaluation'].mean()
-        return f"🧠 The average last evaluation score is {avg_eval:.2f}."
+    # --- Step 2: Generate with LLM ---
+    prompt = f"""
+    You are an HR analytics assistant.
+    Answer the user's question based on the HR dataset below.
 
-    # Number of projects
-    elif "number of projects" in q or "number project" in q:
-        avg_projects = df['number_project'].mean()
-        return f"🧠 The average number of projects per employee is {avg_projects:.2f}."
+    HR Data Context:
+    {context}
 
-    # Monthly hours
-    elif "average hours" in q or "monthly hours" in q:
-        avg_hours = df['average_montly_hours'].mean()
-        return f"🧠 The average monthly working hours are {avg_hours:.2f}."
+    User Question:
+    {question}
 
-    # Time spent in company
-    elif "time in company" in q or "years in company" in q:
-        avg_years = df['time_spend_company'].mean()
-        return f"🧠 The average time spent in the company is {avg_years:.2f} years."
+    Answer clearly and concisely in 2–3 sentences.
+    """
 
-    # Work accident
-    elif "work accident" in q:
-        count_accident = df[df['Work_accident'] == 1].shape[0]
-        return f"🧠 {count_accident} employees had work accidents."
+    response = client.chat.completions.create(
+        model=MODEL_NAME,
+        messages=[{"role": "system", "content": "You are an expert HR data analyst."},
+                  {"role": "user", "content": prompt}],
+        temperature=0.5,
+    )
 
-    # Left / turnover
-    elif "left" in q or "turnover" in q:
-        count_left = df[df['left'] == 1].shape[0]
-        return f"🧠 {count_left} employees left the company."
-
-    # Promotions
-    elif "promotion" in q or "promoted" in q:
-        count_promo = df[df['promotion_last_5years'] == 1].shape[0]
-        return f"🧠 {count_promo} employees got a promotion in the last 5 years."
-
-    # Department
-    elif "department" in q:
-        depts = df['Department'].value_counts()
-        return "🧠 Number of employees per department:\n" + "\n".join([f"{d}: {c}" for d, c in depts.items()])
-
-    # Salary
-    elif "salary" in q:
-        # Count per category
-        salary_counts = df['salary'].value_counts()
-        # Average salary (map categories to numbers)
-        mapping = {'low': 3000, 'medium': 5000, 'high': 7000}
-        avg_salary = df['salary'].map(mapping).mean()
-        response = "🧠 Salary Information:\n"
-        response += "\n".join([f"{s}: {c} employees" for s, c in salary_counts.items()])
-        response += f"\nAverage salary (estimated): {avg_salary:.2f}"
-        return response
-
-    # Fallback (TF-IDF search)
-    else:
-        text_data = df.astype(str).apply(lambda x: ' '.join(x), axis=1).tolist()
-        vectorizer = TfidfVectorizer(stop_words='english')
-        vectors = vectorizer.fit_transform(text_data)
-        q_vector = vectorizer.transform([question])
-        similarity = cosine_similarity(q_vector, vectors).flatten()
-        top_idx = np.argmax(similarity)
-        best_match = text_data[top_idx]
-        return f"🧠 Most relevant HR info:\n\n{best_match}"
+    return response.choices[0].message.content.strip()
 
 # ----------------------------
-# User Input (Centered Card)
+# User Input
 # ----------------------------
-st.markdown("<h2>💬 Ask Your Question</h2>", unsafe_allow_html=True)
-user_question = st.text_input("Enter your question:", placeholder="Example: What is the average monthly salary?")
+st.markdown("<h2>💬 Ask Your HR Question</h2>", unsafe_allow_html=True)
+user_q = st.text_input("Enter your question:", placeholder="Example: What is the average satisfaction level of employees who left?")
 
 if st.button("Get Answer"):
-    if user_question.strip() == "":
-        st.warning("⚠️ Please enter a valid question.")
+    if user_q.strip() == "":
+        st.warning("⚠️ Please enter a question.")
     else:
-        with st.spinner("🔍 Finding the answer..."):
-            answer = get_answer_offline(user_question)
-            st.success("✅ Answer:")
+        with st.spinner("🤖 Thinking..."):
+            answer = get_answer_llm(user_q)
+            st.success("✅ LLM Answer:")
             st.write(answer)
 
 # ----------------------------
-# Optional Sidebar with Info
+# Sidebar Info
 # ----------------------------
 with st.sidebar:
-    st.markdown("<h2>ℹ️ About This App</h2>", unsafe_allow_html=True)
+    st.markdown("### ℹ️ About")
     st.write("""
-    - Offline HR Q&A system using TF-IDF
-    - Ask questions about employee satisfaction, salary, promotions, or departments
-    - No API key required
+    - Real **RAG system** using TF-IDF retrieval + LLM generation  
+    - Works with OpenAI or local models (Llama3/Mistral)  
+    - Ask complex HR questions — get natural answers  
     """)
-    st.image("https://img.icons8.com/color/48/000000/robot-2.png", width=80)
+    st.image("https://img.icons8.com/color/96/robot-2.png", width=80)
