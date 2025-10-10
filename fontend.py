@@ -8,8 +8,10 @@ from openai import OpenAI
 # ----------------------------
 # 🔧 Local LLM Setup (Ollama)
 # ----------------------------
-client = OpenAI(base_url="http://localhost:11434/v1", api_key="ollama")  # no real API key needed
-MODEL_NAME = "llama3"  # or mistral / gemma / phi
+from openai import OpenAI
+client = OpenAI(api_key="your_openai_api_key_here")
+MODEL_NAME = "gpt-3.5-turbo"
+
 
 # ----------------------------
 # Streamlit UI Setup
