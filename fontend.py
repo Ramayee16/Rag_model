@@ -6,21 +6,19 @@ from sklearn.metrics.pairwise import cosine_similarity
 from openai import OpenAI
 
 # ----------------------------
-# OpenAI LLM Setup
+# Online OpenAI LLM Setup
 # ----------------------------
-# Make sure you add your OpenAI API key in Streamlit Secrets:
-# OPENAI_API_KEY="sk-xxxxxxxxxxxxxxxxxxx"
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-MODEL_NAME = "gpt-4-turbo"
+MODEL_NAME = "gpt-4-turbo"  # or "gpt-3.5-turbo"
 
 # ----------------------------
 # Page Setup
 # ----------------------------
-st.set_page_config(page_title="🤖 HR Q&A with LLM", page_icon="🧠", layout="wide")
+st.set_page_config(page_title="🤖 HR Q&A Online", page_icon="🧠", layout="wide")
 
 st.markdown("""
-<h1 style='text-align:center;color:#0a3d62;'>🤖 Intelligent HR Q&A System using RAG + LLM</h1>
-<p style='text-align:center;'>Ask questions about your HR data and get answers powered by GPT.</p>
+<h1 style='text-align:center;color:#0a3d62;'>🤖 HR Q&A System using RAG + GPT</h1>
+<p style='text-align:center;'>Ask HR questions online and get answers powered by GPT.</p>
 """, unsafe_allow_html=True)
 
 # ----------------------------
@@ -28,8 +26,7 @@ st.markdown("""
 # ----------------------------
 @st.cache_data
 def load_data():
-    df = pd.read_csv("HR_comma_sep.csv")
-    return df
+    return pd.read_csv("HR_comma_sep.csv")
 
 df = load_data()
 
@@ -37,7 +34,7 @@ with st.expander("📊 View HR Dataset"):
     st.dataframe(df.head())
 
 # ----------------------------
-# Prepare TF-IDF Corpus (Retriever)
+# Prepare TF-IDF Corpus
 # ----------------------------
 @st.cache_resource
 def prepare_corpus():
@@ -52,36 +49,59 @@ vectorizer, vectors, text_data = prepare_corpus()
 # RAG + LLM Answer Function
 # ----------------------------
 def get_answer_llm(question):
-    # --- Step 1: Retrieve top 3 similar rows from HR data ---
     q_vector = vectorizer.transform([question])
     similarity = cosine_similarity(q_vector, vectors).flatten()
     top_indices = similarity.argsort()[-3:][::-1]
     top_contexts = [text_data[i] for i in top_indices]
     context = "\n\n".join(top_contexts)
 
-    # --- Step 2: Generate answer using LLM ---
     prompt = f"""
     You are an HR analytics assistant.
-    Use the following HR dataset context to answer the user's question.
+    Use the HR dataset context to answer this question clearly in 2–3 sentences.
 
     HR Data Context:
     {context}
 
     User Question:
     {question}
-
-    Answer clearly and concisely in 2–3 sentences.
     """
 
     try:
         response = client.chat.completions.create(
             model=MODEL_NAME,
             messages=[
-                {"role": "system", "content": "You are a helpful HR data analyst."},
+                {"role": "system", "content": "You are a helpful HR analyst."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.5,
         )
         return response.choices[0].message.content.strip()
     except Exception as e:
-        return
+        return f"⚠️ LLM Error: {str(e)}"
+
+# ----------------------------
+# User Input
+# ----------------------------
+st.markdown("<h2>💬 Ask Your HR Question</h2>", unsafe_allow_html=True)
+user_q = st.text_input("Enter your question:", placeholder="Example: What is the average satisfaction level?")
+
+if st.button("Get Answer"):
+    if user_q.strip() == "":
+        st.warning("⚠️ Please enter a question.")
+    else:
+        with st.spinner("🤖 Thinking..."):
+            answer = get_answer_llm(user_q)
+            st.success("✅ LLM Answer:")
+            st.write(answer)
+
+# ----------------------------
+# Sidebar Info
+# ----------------------------
+with st.sidebar:
+    st.markdown("### ℹ️ About")
+    st.write("""
+    - Online RAG + GPT system  
+    - Ask HR questions like satisfaction, promotions, salary, etc.  
+    - Requires OpenAI API key stored in Streamlit Secrets
+    """)
+    st.image("https://img.icons8.com/color/96/robot-2.png", width=80)
